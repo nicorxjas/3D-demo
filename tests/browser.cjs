@@ -1,0 +1,43 @@
+const assert=require('node:assert/strict');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE_PATH||'playwright');
+const fs=require('node:fs');
+(async()=>{
+ fs.mkdirSync('artifacts',{recursive:true});
+ const browser=await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'msedge',args:['--enable-webgl','--ignore-gpu-blocklist']});
+ const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto('http://localhost:3000');await page.waitForFunction(()=>window.layer?.getState().meshCount>0);await page.waitForTimeout(1800);
+  assert.equal((await page.evaluate(()=>window.layer.getState())).visibleParts.length,18);
+  await page.screenshot({path:'artifacts/studio.png',fullPage:true});
+  await page.getByRole('button',{name:'El motor del eje X no se mueve',exact:true}).click();
+  await page.waitForFunction(()=>!window.layer.getState().busy&&window.layer.getState().filter.length>0);await page.waitForTimeout(2000);
+  let state=await page.evaluate(()=>window.layer.getState());
+  assert.deepEqual(state.visibleParts.slice().sort(),['motor-x','belts','board','fuses'].sort());
+  assert.equal(await page.locator('.message-sources a').count(),2);
+  assert.equal(await page.locator('.part-label:visible').count(),4);
+  await page.screenshot({path:'artifacts/motor-isolated.png',fullPage:true});
+  await page.getByRole('button',{name:'Rayos X',exact:true}).click();assert.deepEqual((await page.evaluate(()=>window.layer.getState())).visibleParts.slice().sort(),state.visibleParts.slice().sort());
+  await page.getByRole('button',{name:'Rayos X',exact:true}).click();
+  await page.getByRole('button',{name:'Quitar filtro',exact:true}).click();assert.equal((await page.evaluate(()=>window.layer.getState())).visibleParts.length,18);
+  await page.getByRole('button',{name:'Ensamblado',exact:true}).click();await page.waitForTimeout(1500);
+  state=await page.evaluate(()=>window.layer.getState());assert(state.subLayers.every(l=>l.distance<.001));
+  await page.locator('#explosion').fill('100');await page.locator('#explosion').dispatchEvent('input');await page.waitForTimeout(1700);
+  state=await page.evaluate(()=>window.layer.getState());assert.equal(state.explosion,1);assert(state.subLayers.filter(l=>l.part==='extruder').every(l=>l.distance>.8));
+  await page.screenshot({path:'artifacts/exploded.png',fullPage:true});
+  await page.getByRole('button',{name:'Extrusión',exact:true}).click();await page.getByRole('button',{name:'Seleccionar Carro del extrusor',exact:true}).click();await page.getByRole('button',{name:'Explorar 7 capas del extrusor',exact:true}).click();await page.waitForTimeout(1700);
+  state=await page.evaluate(()=>window.layer.getState());assert.equal(state.visibleParts.length,7);assert(!state.visibleParts.includes('frame'));assert(state.visibleParts.includes('thermistor'));
+  await page.screenshot({path:'artifacts/extruder-layers.png',fullPage:true});
+  const overlap=await page.locator('.part-label:visible').evaluateAll(els=>{const r=els.map(el=>el.getBoundingClientRect());return r.some((a,i)=>r.some((b,j)=>i!==j&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));});assert.equal(overlap,false,'Visible labels overlap');
+  await page.getByRole('button',{name:'Nueva conversación',exact:true}).click();await page.getByRole('button',{name:'La cama no calienta',exact:true}).click();await page.waitForFunction(()=>!window.layer.getState().busy&&window.layer.getState().filter.includes('bed'));
+  assert.deepEqual((await page.evaluate(()=>window.layer.getState())).visibleParts.slice().sort(),['bed','board','fuses'].sort());
+  await page.getByRole('button',{name:'Fuentes 4',exact:true}).click();assert.equal(await page.locator('.source-card a').count(),4);
+  await page.getByRole('button',{name:'Diagnóstico',exact:true}).click();
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar sesión',exact:true}).click();assert.equal((await download).suggestedFilename(),'layer-diagnostico.md');
+  await page.getByRole('button',{name:'Nueva conversación',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.waitForTimeout(1800);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile has horizontal overflow');
+  await page.screenshot({path:'artifacts/mobile.png',fullPage:true});
+  assert.deepEqual(errors,[]);
+  console.log('PASS: 18 groups; strict isolation; X-ray isolation; reset; nested layers; extruder assembly; label layout; heatbed diagnosis; sources; export; mobile; no browser exceptions.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
