@@ -7,6 +7,9 @@ const fs=require('node:fs');
  const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
+  // Deterministic viewer regression; real Ollama is covered by test:local.
+  const {demoDiagnosis}=await import('../server/diagnosis.js');
+  await page.route('**/api/chat',async route=>{const {message,history}=route.request().postDataJSON();await route.fulfill({json:demoDiagnosis(message,history)});});
   await page.goto('http://localhost:3000');await page.waitForFunction(()=>window.layer?.getState().meshCount>0);await page.waitForTimeout(1800);
   assert.equal((await page.evaluate(()=>window.layer.getState())).visibleParts.length,18);
   await page.screenshot({path:'artifacts/studio.png',fullPage:true});

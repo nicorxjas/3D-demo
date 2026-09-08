@@ -12,15 +12,25 @@ node --env-file-if-exists=.env server/index.js
 
 Abrir http://localhost:3000. También funciona `npm start`. Three.js y su licencia están incluidos en `public/vendor`; el visor no depende de un CDN. Las fuentes tipográficas usan Google Fonts con alternativas del sistema.
 
-## Conectar el LLM
+## Conectar el LLM local
 
-Copiar `.env.example` a `.env`, completar `OPENAI_API_KEY` y reiniciar el servidor. `OPENAI_MODEL` permite elegir un modelo compatible con Responses API y Structured Outputs; el valor de ejemplo es `gpt-4.1-mini`.
+La plataforma usa **Ollama con llama3.1:8b** por defecto. Abrí Ollama y ejecutá `npm start`. No requiere claves ni envía consultas a un proveedor externo. Para personalizar la conexión, copiá `.env.example` a `.env`:
 
-- La clave permanece en el servidor; `.env` no se sirve como archivo público.
-- El chat envía a OpenAI el mensaje, los últimos diez mensajes del historial, el catálogo de componentes y cuatro resúmenes documentales. Se solicita `store: false`.
-- El modelo devuelve texto, pasos, IDs de componentes y IDs de fuentes bajo un esquema JSON. El servidor valida las referencias y la interfaz toma las URLs únicamente del catálogo conocido.
-- Sin clave, se activa **Demo documentada**: selección determinista de respuestas predefinidas por palabras del síntoma. Este modo no es un LLM. Los errores del proveedor se muestran y no se sustituyen silenciosamente por respuestas de demo.
-- La integración con el proveedor se verificó con respuestas simuladas. Una llamada real requiere una clave y cuota disponibles.
+```ini
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=llama3.1:8b
+PORT=3000
+```
+
+Ambos modelos ya estaban instalados: Llama 3 de 8B Q4_0 (4,66 GB) y Llama 3.1 de 8B Q4_K_M (4,92 GB). Elegimos 3.1 por las mejoras multilingües y de razonamiento documentadas por [Ollama](https://ollama.com/library/llama3.1). Para probar el anterior, cambiá `OLLAMA_MODEL=llama3:latest` y reiniciá. No se descargan modelos automáticamente.
+
+- El servidor envía el mensaje, hasta diez mensajes anteriores (1200 caracteres por mensaje en Ollama), el catálogo y cuatro resúmenes documentales a `/api/chat` de Ollama. Solicita JSON con esquema, valida IDs y exige fuentes para los procedimientos.
+- La interfaz muestra el modelo y comprueba su instalación mediante `/api/tags`. Esto verifica disponibilidad, no calidad de respuestas. El botón de conexión vuelve a comprobar el estado.
+- La primera consulta puede tardar por la carga del modelo. El servidor espera hasta 180 segundos y el navegador 190. Se usan 8K de contexto, temperatura 0 y hasta 700 tokens de salida.
+- Si el modelo devuelve un JSON inválido o pasos sin fuentes, se solicita una única corrección al mismo LLM, dentro del límite total de 180 segundos. Si sigue fallando, se muestra el error. El servidor no inventa citas ni sustituye la respuesta por demo. Los errores de conexión y respuestas incompletas se muestran directamente.
+- Para respuestas predefinidas, configurá explícitamente `LLM_PROVIDER=demo`. Este modo no es un LLM.
+- OpenAI sigue disponible con `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`. Solo ese modo envía consultas a OpenAI; la clave permanece en el servidor.
 
 ## Interacción
 
@@ -46,8 +56,14 @@ La aplicación usa estos resúmenes en el contexto del modelo; no ingiere manual
 ## Verificación
 
 ```sh
-node --test tests/diagnosis.test.js
+node --test tests/*.test.js
 ```
+
+Verificación real del 2026-09-06: Llama 3.1:8b respondió al diagnóstico de Bed preheat error a través de /api/chat en 97,8 segundos, seleccionando bed, board y fuses y citando heat-guide. Ollama estaba ejecutándose en CPU (sin VRAM). Es una prueba de integración, no un benchmark exhaustivo entre modelos.
+
+`npm run test:local` comprueba el servidor activo y hace una consulta real a Ollama (puede tardar hasta tres minutos). `npm run test:local:browser` verifica la consulta «El motor del eje X no se mueve» con Ollama real desde el navegador, las citas y la selección en el visor. Requiere Playwright como las pruebas de navegador.
+
+Las pruebas de navegador generales usan respuestas de demo simuladas para verificar el visor de forma reproducible.
 
 Para pruebas de navegador, instalar las dependencias de desarrollo con `npm install`, iniciar la aplicación y ejecutar `npm run test:browser`. Por defecto usa Edge instalado. `BROWSER_CHANNEL=chrome` permite usar Chrome. `PLAYWRIGHT_MODULE_PATH` permite reutilizar una instalación de Playwright existente.
 
@@ -60,7 +76,7 @@ Las pruebas verifican circuitos diferentes para cama/hotend, contexto de eje, re
 | `public/model.js` | Geometría, capas, interacción, cámara y etiquetas |
 | `public/app.js` | Interfaz, conversación y sincronización del visor |
 | `public/catalog.js` | Componentes y contexto documental |
-| `server/diagnosis.js` | Demo y adaptador OpenAI |
+| `server/diagnosis.js` | Demo y adaptadores Ollama/OpenAI |
 | `server/index.js` | Archivos estáticos y API local |
 
 El servidor escucha únicamente en `127.0.0.1`. Está pensado para uso local. Un despliegue compartido necesita autenticación, límites de consumo y gestión de usuarios.
