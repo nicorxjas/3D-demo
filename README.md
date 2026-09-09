@@ -12,6 +12,19 @@ node --env-file-if-exists=.env server/index.js
 
 Abrir http://localhost:3000. También funciona `npm start`. Three.js y su licencia están incluidos en `public/vendor`; el visor no depende de un CDN. Las fuentes tipográficas usan Google Fonts con alternativas del sistema.
 
+## Equipos y rutas
+
+- `/impresora`: experiencia original de Prusa. `/` conserva ese mismo inicio.
+- `/kernium`: asistencia de postventa para **Jungheinrich EFG 216**, con cinco subsistemas y diez conjuntos funcionales. Incluye despiece, aislamiento por subsistema/conjunto, rayos X, selección desde el chat, fuentes por página y exportación de sesión. Ambas rutas tienen navegación directa entre equipos.
+
+Kernium usa el manual 51099986, edición 07.11, de 109 páginas: PDF local e índice de 105 fragmentos en `data/kernium/`. La recuperación léxica bilingüe selecciona documentación por consulta antes de llamar a Ollama/OpenAI. El endpoint `/api/kernium/chat` mantiene catálogo, citas, instrucciones y seguridad separados de `/api/chat` (Prusa). `/api/kernium/manual#page=75` permite consultar el PDF en una página concreta.
+
+Los diez conjuntos son una selección inicial para validar con órdenes de trabajo. **No se afirma que concentren el 70% de las fallas.** Alcance de cada agrupación, fuente del manual y metodología para calcular ese Pareto: [data/kernium/README.md](data/kernium/README.md).
+
+Pruebas de Kernium: `npm run test:kernium:browser` verifica rutas, visor, citas, exportación, PDF y móvil usando respuestas de demo controladas. `npm run test:kernium:local` hace una consulta real al proveedor configurado y guarda la respuesta en `artifacts/kernium-live.json`. Requiere el servidor activo; puede tardar hasta tres minutos con Ollama en CPU. Las pruebas unitarias de ambas experiencias corren con `npm test`.
+
+Verificación del 2026-09-08: 19 pruebas unitarias aprobadas y ambas suites de navegador aprobadas. La consulta real «Las horquillas no elevan» respondió en 148,8 segundos con Llama 3.1:8b en CPU, seleccionando depósito y batería y citando F 9 (PDF 84) y E 30 (PDF 75). El primer intento con contexto más extenso agotó los 180 segundos; se redujo la recuperación a dos páginas más la preparación segura. Es una prueba de integración, no una garantía de latencia o precisión para cualquier síntoma.
+
 ## Conectar el LLM local
 
 La plataforma usa **Ollama con llama3.1:8b** por defecto. Abrí Ollama y ejecutá `npm start`. No requiere claves ni envía consultas a un proveedor externo. Para personalizar la conexión, copiá `.env.example` a `.env`:

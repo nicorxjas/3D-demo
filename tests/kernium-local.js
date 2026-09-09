@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
+const base=process.env.TEST_BASE_URL||'http://localhost:3000';
+const start=Date.now();
+const r=await fetch(base+'/api/kernium/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'Las horquillas no elevan. ¿Qué debería revisar primero?',history:[]}),signal:AbortSignal.timeout(190000)});
+const result=await r.json();
+assert.equal(r.status,200,JSON.stringify(result));
+assert.equal(result.mode,'live');assert.equal(result.equipment,'efg-216');
+assert(result.sourceIds.length>0);assert(result.partIds.length>0);
+assert(result.citations.every(c=>result.sourceIds.includes(c.id)&&c.url.includes('/api/kernium/manual#page=')));
+assert(!result.partIds.some(id=>['bed','hotend','fuses'].includes(id)));
+await writeFile('artifacts/kernium-live.json',JSON.stringify({elapsedSeconds:(Date.now()-start)/1000,...result},null,2));
+console.log(JSON.stringify({elapsedSeconds:(Date.now()-start)/1000,title:result.title,summary:result.summary,steps:result.steps,partIds:result.partIds,sourceIds:result.sourceIds},null,2));

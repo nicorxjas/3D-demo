@@ -9,7 +9,9 @@
     "test": "node --test tests/*.test.js",
     "test:browser": "node tests/browser.cjs",
     "test:local": "node tests/local-smoke.js",
-    "test:local:browser": "node tests/local-browser.cjs"
+    "test:local:browser": "node tests/local-browser.cjs",
+    "test:kernium:browser": "node tests/kernium-browser.cjs",
+    "test:kernium:local": "node tests/kernium-local.js"
   },
   "devDependencies": {
     "playwright": "1.62.1"
